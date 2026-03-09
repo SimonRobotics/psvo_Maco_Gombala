@@ -1,131 +1,156 @@
 import cv2
-import numpy as np
 from ximea import xiapi
+import numpy as np
 
-def centroid_of_contour(contour):
-    M = cv2.moments(contour)
-    if M["m00"] == 0:
-        return None
-    cx = int(M["m10"] / M["m00"])
-    cy = int(M["m01"] / M["m00"])
-    return (cx, cy)
+MIN_CONTOUR_AREA = 1000
 
-def classify_shape(contour, approx, frame_area):
-    area = cv2.contourArea(contour)
-    if area < 400:  # šum 
-        return None, None
-    if area > 0.95 * frame_area:
-        return None, None
 
-    peri = cv2.arcLength(contour, True)
-    if peri == 0:
-        return None, None
+def load_calibration(path):
+    data = np.load(path, allow_pickle=True)
+    camera_matrix = data["camera_matrix"]
+    dist_coeff = data["dist_coeff"]
+    return camera_matrix, dist_coeff
 
-    circularity = 4.0 * np.pi * area / (peri * peri)
 
-    vertices = len(approx)
-    x, y, w, h = cv2.boundingRect(approx)
-    aspect_ratio = w / float(h) if h != 0 else 0
-
-    # kruh: vysoká circularity + viac bodov
-    if circularity > 0.80 and vertices >= 6:
-        return "kruznica", {"circularity": circularity}
-
-    if vertices == 3:
-        return "trojuholnik", None
-
-    if vertices == 4:
-        if 0.92 <= aspect_ratio <= 1.08:
-            return "stvorec", {"ar": aspect_ratio}
-        return "obdlznik", {"ar": aspect_ratio}
-
-    return None, None
-
-def main():
+def setup_camera():
     cam = xiapi.Camera()
+
+    print("Opening first camera...")
+    cam.open_device()
+
+    cam.set_exposure(50000)
+    cam.set_param("imgdataformat", "XI_RGB24")
+    cam.set_param("auto_wb", 1)
+
+    print(f"Exposure was set to {cam.get_exposure()} us")
+
     img = xiapi.Image()
 
-    try:
-        print("Opening Ximea camera...")
-        cam.open_device()
+    print("Starting data acquisition...")
+    cam.start_acquisition()
 
-        # Nastavenia 
-        cam.set_exposure(50000)  # us
-        cam.set_param("imgdataformat", "XI_RGB24")  # 3 kanály
-        cam.set_param("auto_wb", 1)
+    return cam, img
 
-        print(f"Exposure: {cam.get_exposure()} us")
-        cam.start_acquisition()
-        print("Acquisition started. ESC / q ukončí program.")
 
-        cv2.namedWindow("shapes", cv2.WINDOW_NORMAL)
-        cv2.namedWindow("edges", cv2.WINDOW_NORMAL)
+def nothing(x):
+    pass
 
-        kernel_close = np.ones((3, 3), np.uint8)
 
-        while True:
-            cam.get_image(img)
-            frame_rgb = img.get_image_data_numpy()          # HxWx3 (RGB)
-            frame = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)  # OpenCV-friendly
+def create_trackbars():
+    cv2.namedWindow("Hough Controls")
 
-            frame_area = frame.shape[0] * frame.shape[1]
+    # trackbar nesmie mať float, preto dp budeme deliť 10
+    cv2.createTrackbar("dp x10", "Hough Controls", 14, 50, nothing)       # 1.2
+    cv2.createTrackbar("minDist", "Hough Controls", 300, 300, nothing)
+    cv2.createTrackbar("param1", "Hough Controls", 100, 300, nothing)
+    cv2.createTrackbar("param2", "Hough Controls", 30, 200, nothing)
+    cv2.createTrackbar("minRadius", "Hough Controls", 44, 200, nothing)
+    cv2.createTrackbar("maxRadius", "Hough Controls", 155, 300, nothing)
 
-            # --- Predspracovanie ---
-            blurred = cv2.GaussianBlur(frame, (5, 5), 0)
-            gray = cv2.cvtColor(blurred, cv2.COLOR_BGR2GRAY)
+    # bonus: blur kernel
+    cv2.createTrackbar("blur", "Hough Controls", 1, 31, nothing)
 
-            # hrany
-            edges = cv2.Canny(gray, 60, 160)
-            edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel_close, iterations=1)
 
-            # kontúry
-            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+def get_trackbar_values():
+    dp = cv2.getTrackbarPos("dp x10", "Hough Controls") / 10.0
+    minDist = cv2.getTrackbarPos("minDist", "Hough Controls")
+    param1 = cv2.getTrackbarPos("param1", "Hough Controls")
+    param2 = cv2.getTrackbarPos("param2", "Hough Controls")
+    minRadius = cv2.getTrackbarPos("minRadius", "Hough Controls")
+    maxRadius = cv2.getTrackbarPos("maxRadius", "Hough Controls")
+    blur_size = cv2.getTrackbarPos("blur", "Hough Controls")
 
-            for cnt in contours:
-                peri = cv2.arcLength(cnt, True)
-                if peri == 0:
-                    continue
+    # GaussianBlur potrebuje nepárne a aspoň 1
+    if blur_size < 1:
+        blur_size = 1
+    if blur_size % 2 == 0:
+        blur_size += 1
 
-                approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
+    # ochrana proti neplatným hodnotám
+    if dp < 0.1:
+        dp = 0.1
+    if minDist < 1:
+        minDist = 1
+    if param1 < 1:
+        param1 = 1
+    if param2 < 1:
+        param2 = 1
+    if maxRadius < minRadius:
+        maxRadius = minRadius + 1
 
-                shape_name, info = classify_shape(cnt, approx, frame_area)
-                if shape_name is None:
-                    continue
+    return dp, minDist, param1, param2, minRadius, maxRadius, blur_size
 
-                c = centroid_of_contour(cnt)
-                if c is None:
-                    continue
 
-                # kreslenie
-                cv2.drawContours(frame, [approx], -1, (0, 255, 0), 2)
-                cv2.circle(frame, c, 4, (0, 0, 255), -1)
+def main():
+    calibration_path = "PVSO_zad_2/calibration_data.npz"
 
-                label = shape_name
-                if info and "circularity" in info:
-                    label += f" (circ={info['circularity']:.2f})"
-                if info and "ar" in info:
-                    label += f" (ar={info['ar']:.2f})"
+    camera_matrix, dist_coeff = load_calibration(calibration_path)
+    cam, img = setup_camera()
 
-                cv2.putText(frame, label, (c[0] + 8, c[1] - 8),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+    create_trackbars()
 
-            cv2.imshow("edges", edges)
-            cv2.imshow("shapes", frame)
+    # dp = 14
+    # minDist = 300
+    # param1 = 100
+    # param2 = 30
+    # minRadius = 44
+    # maxRadius = 155
+    # blur_size = 1
+    while True:
+        cam.get_image(img)
+        frame = img.get_image_data_numpy()
 
-            key = cv2.waitKey(1) & 0xFF
-            if key == 27 or key == ord('q'):  # ESC alebo q
-                break
+        h, w = frame.shape[:2]
+        frame = cv2.resize(frame, (w // 4, h // 4))
+        frame = cv2.undistort(frame, camera_matrix, dist_coeff)
 
-    finally:
-        try:
-            cam.stop_acquisition()
-        except Exception:
-            pass
-        try:
-            cam.close_device()
-        except Exception:
-            pass
-        cv2.destroyAllWindows()
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        dp, minDist, param1, param2, minRadius, maxRadius, blur_size = get_trackbar_values()
+
+        blur = cv2.GaussianBlur(gray, (blur_size, blur_size), 2)
+
+        circles = cv2.HoughCircles(
+            blur,
+            cv2.HOUGH_GRADIENT,
+            dp=dp,
+            minDist=minDist,
+            param1=param1,
+            param2=param2,
+            minRadius=minRadius,
+            maxRadius=maxRadius
+        )
+
+        output = frame.copy()
+
+        if circles is not None:
+            circles = np.round(circles[0, :]).astype("int")
+
+            for (x, y, r) in circles:
+                cv2.circle(output, (x, y), r, (0, 255, 0), 2)
+                cv2.circle(output, (x, y), 2, (0, 0, 255), 3)
+
+        info = (
+            f"dp={dp:.1f} minDist={minDist} "
+            f"p1={param1} p2={param2} "
+            f"rMin={minRadius} rMax={maxRadius} blur={blur_size}"
+        )
+        cv2.putText(output, info, (10, 25),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+
+        cv2.imshow("frame", output)
+        cv2.imshow("gray", gray)
+        cv2.imshow("blur", blur)
+
+        key = cv2.waitKey(1) & 0xFF
+        if key == 27:  # ESC
+            break
+
+    print("Stopping acquisition...")
+    cam.stop_acquisition()
+    cam.close_device()
+    cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     main()
