@@ -32,11 +32,11 @@ for file in imgs:
         stefan = cv2.drawChessboardCorners(img, CHECKERBOARD, corners2, retval)
 
         imgpoints.append(corners2)
-    # cv2.imshow('img',stefan)
-    # cv2.waitKey(0)
+    cv2.imshow('img',stefan)
+    cv2.waitKey(0)
 
 ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, img_grey.shape[::-1], None, None)
- 
+    
 print("\n===== VÝSLEDKY KALIBRÁCIE =====\n")
 
 print(f"RMS chyba (reprojection error): {ret:.6f} PX\n")
@@ -62,13 +62,13 @@ np.savez("calibration_data.npz",
 print("Kalibrácia uložená do calibration_data.npz")
 
 
-# img = cv2.imread("./img4.png")
-# h, w = img.shape[:2]
+img = cv2.imread("./img4.png")
+h, w = img.shape[:2]
 
-# new_mtx, roi = cv2.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
-# und = cv2.undistort(img, mtx, dist, None, new_mtx)
+new_mtx, roi = cv2.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
+und = cv2.undistort(img, mtx, dist, None, new_mtx)
 
-# cv2.imshow("orig", img)
-# cv2.imshow("undistorted", und)
-# cv2.waitKey(0)
-# cv2.destroyAllWindows()
+cv2.imshow("orig", img)
+cv2.imshow("undistorted", und)
+cv2.waitKey(0)
+cv2.destroyAllWindows()

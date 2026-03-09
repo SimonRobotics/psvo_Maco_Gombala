@@ -23,7 +23,8 @@ while True:
 
     cam.get_image(img)
     image = img.get_image_data_numpy()
-    image = cv2.resize(image,(257,308))
+    x, y = image.shape[0]//4,image.shape[1]//4
+    image = cv2.resize(image,(y,x))
 
 
     cv2.imshow("test", image)
@@ -32,3 +33,4 @@ while True:
     if key == ord(' '):
         cv2.imwrite("img"+str(i)+".png", image)
         i+=1
+
