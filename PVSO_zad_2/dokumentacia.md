@@ -65,3 +65,19 @@ Program zobrazuje viacero pomocných okien:
 * hrany pre polygonálnu detekciu.
 
 Takýto výstup umožňuje jednoduchšie ladenie parametrov a kontrolu správnosti detekcie.
+
+# Detekcia farby (HSV segmentácia)
+
+Tento program slúži na jednoduchú detekciu farebných oblastí v obraze z kamery. Obraz z kamery sa najprv načíta a prevedie do farebného priestoru **HSV**, ktorý je vhodnejší na prácu s farbami než klasický RGB/BGR.
+
+Používateľ môže pomocou posuvníkov (trackbarov) nastavovať dolné a horné hranice pre zložky **Hue**, **Saturation** a **Value**. Tieto hodnoty určujú, ktorá farba bude v obraze detegovaná.
+
+Na základe zvolených hraníc sa vytvorí **binárna maska**, ktorá označuje pixely patriace do zvoleného farebného rozsahu. Táto maska sa potom použije na zvýraznenie detegovaných oblastí v obraze.
+
+Výsledkom programu je:
+
+* pôvodný obraz z kamery,
+* binárna maska detegovanej farby,
+* výsledný obraz, v ktorom sú detegované pixely zvýraznené.
+
+Program umožňuje interaktívne nastaviť vhodný rozsah HSV hodnôt pre konkrétnu farbu a je možné ho použiť napríklad na ladenie farebnej segmentácie pre ďalšie spracovanie obrazu.
