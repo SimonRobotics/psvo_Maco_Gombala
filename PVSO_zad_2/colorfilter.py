@@ -1,61 +1,95 @@
 import cv2
 import numpy as np
+from ximea import xiapi
+
 
 def nothing(x):
     pass
 
-cap = cv2.VideoCapture(0)
 
-blue = np.zeros((480, 640, 3), dtype=np.uint8)
-blue[:,:,0] = 255
-blue[:,:,1] = 0
-blue[:,:,2] = 0 
+# -------------------------
+# Camera setup
+# -------------------------
+cam = xiapi.Camera()
 
-# Create a window for sliders
-cv2.namedWindow("Trackbars")
+print("Opening camera...")
+cam.open_device()
 
-# Create RGB lower sliders
-cv2.createTrackbar("Lower R", "Trackbars", 60, 255, nothing)
-cv2.createTrackbar("Lower G", "Trackbars", 35, 255, nothing)
-cv2.createTrackbar("Lower B", "Trackbars", 140, 255, nothing)
+cam.set_exposure(50000)
+cam.set_param("imgdataformat", "XI_RGB24")
+cam.set_param("auto_wb", 1)
 
-# Create RGB upper sliders
-cv2.createTrackbar("Upper R", "Trackbars", 180, 255, nothing)
-cv2.createTrackbar("Upper G", "Trackbars", 255, 255, nothing)
-cv2.createTrackbar("Upper B", "Trackbars", 255, 255, nothing)
+img = xiapi.Image()
 
+print("Starting acquisition...")
+cam.start_acquisition()
+
+
+# -------------------------
+# Windows
+# -------------------------
+cv2.namedWindow("Controls")
+cv2.namedWindow("Original")
+cv2.namedWindow("Mask")
+cv2.namedWindow("Result")
+
+
+# -------------------------
+# HSV sliders
+# -------------------------
+cv2.createTrackbar("Lower H", "Controls", 0, 179, nothing)
+cv2.createTrackbar("Lower S", "Controls", 120, 255, nothing)
+cv2.createTrackbar("Lower V", "Controls", 70, 255, nothing)
+
+cv2.createTrackbar("Upper H", "Controls", 10, 179, nothing)
+cv2.createTrackbar("Upper S", "Controls", 255, 255, nothing)
+cv2.createTrackbar("Upper V", "Controls", 255, 255, nothing)
+
+
+# -------------------------
+# Main loop
+# -------------------------
 while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
+
+    cam.get_image(img)
+    frame = img.get_image_data_numpy()
+    frame = cv2.resize(frame,(640,640))
+
+    # Convert to HSV
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     # Read slider values
-    lr = cv2.getTrackbarPos("Lower R", "Trackbars")
-    lg = cv2.getTrackbarPos("Lower G", "Trackbars")
-    lb = cv2.getTrackbarPos("Lower B", "Trackbars")
+    lh = cv2.getTrackbarPos("Lower H", "Controls")
+    ls = cv2.getTrackbarPos("Lower S", "Controls")
+    lv = cv2.getTrackbarPos("Lower V", "Controls")
 
-    ur = cv2.getTrackbarPos("Upper R", "Trackbars")
-    ug = cv2.getTrackbarPos("Upper G", "Trackbars")
-    ub = cv2.getTrackbarPos("Upper B", "Trackbars")
+    uh = cv2.getTrackbarPos("Upper H", "Controls")
+    us = cv2.getTrackbarPos("Upper S", "Controls")
+    uv = cv2.getTrackbarPos("Upper V", "Controls")
 
-    lower = np.array([lb, lg, lr])
-    upper = np.array([ub, ug, ur])
+    lower = np.array([lh, ls, lv])
+    upper = np.array([uh, us, uv])
 
     # Create mask
-    mask = cv2.inRange(frame, lower, upper)
+    mask = cv2.inRange(hsv, lower, upper)
 
-    result = cv2.bitwise_and(frame, blue, mask=mask)
+    # Replace detected pixels with blue
+    result = frame.copy()
+    result[mask == 255] = [255, 0, 0]   # Blue in BGR
 
-    result = np.where(mask[...,np.newaxis], result, frame)
-
-    # Show frames
+    # Show images
     cv2.imshow("Original", frame)
     cv2.imshow("Mask", mask)
     cv2.imshow("Result", result)
 
-    # Quit with q
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    # Quit
+    if cv2.waitKey(1) == ord('q'):
         break
 
-cap.release()
+
+# -------------------------
+# Cleanup
+# -------------------------
+cam.stop_acquisition()
+cam.close_device()
 cv2.destroyAllWindows()
