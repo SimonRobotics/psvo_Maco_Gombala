@@ -41,7 +41,7 @@ Následne odstránime trinásty prvok, pretože to je stredový prvok. Keďže m
 Potom testujeme extrémy, každý bod sa pýta dve otázky:
 * som vačší ako všetci ? ak áno tak som maximum. 
 * som menší ako všetci ? ak áno tak som minimum.
-* * ak je niektorý z bodov maximum alebo minimum, uloží sa ako keypoint.
+    * ak je niektorý z bodov maximum alebo minimum, uloží sa ako keypoint.
 Táto funkcia je veľmi pomalá, môžeme vidieť že má 3 vnorené cykly, vytvára veľa polí a celá je v čistom pythone bez knižníc.
 
 ## Výber najsilnejších bodov
@@ -64,19 +64,19 @@ Na tomto obrázku môžeme vidieť pôvodný obrázok v odtieni šedej. Následn
 2. Moja detekcia (200 bodov)
 * červené body predstavujú keypointy nájdené vlastnou implementáciou
 * body sú:
-* * rozmiestnené aj v textúre kameňov
-* * často aj na menej výrazných miestach
+    * rozmiestnené aj v textúre kameňov
+    * často aj na menej výrazných miestach
 * vidno väčší počet bodov v „hladkých“ oblastiach → citlivosť na šum
 Výsledok pôsobí mierne chaoticky a obsahuje aj menej relevantné body
 
 3. OpenCV SIFT (200 bodov)
 * červené body predstavujú keypointy detegované pomocou SIFT algoritmu
 * body sa nachádzajú hlavne:
-* * na rohoch kameňov
-* * na hranách medzi dlaždicami
+    * na rohoch kameňov
+    * na hranách medzi dlaždicami
 * rozloženie je:
-* * rovnomernejšie
-* * viac zodpovedá štruktúre obrazu
+    * rovnomernejšie
+    * viac zodpovedá štruktúre obrazu
 Body sú stabilnejšie a významnejšie
 
 Naša metóda deteguje viac bodov aj v menej významných oblastiach, zatiaľ čo SIFT sa sústreďuje na stabilné a výrazné štruktúry, ako sú rohy a hrany, čím poskytuje kvalitnejšie výsledky.
