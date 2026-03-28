@@ -13,12 +13,12 @@ def build_dog_pyramid(img, sigmas):
     for i in range(len(blurred) - 1):
         dogs.append(blurred[i + 1] - blurred[i])
 
-    return blurred, dogs
+    return dogs
 
 def find_local_extrema(dogs, threshold=5):
     keypoints = []
 
-    for s in range(1, len(dogs) - 1):  # preskakujeme prvú a poslednú DoG vrstvu
+    for s in range(1, len(dogs) - 1):
         prev_dog = dogs[s - 1]
         curr_dog = dogs[s]
         next_dog = dogs[s + 1]
@@ -80,34 +80,19 @@ def main():
 
     image_path = os.path.join(base_dir, "images", "toto.jpg")
 
-    print("Cesta k obrazku:", image_path)
-    print("Existuje?", os.path.exists(image_path))
-
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 
     if img is None:
         print("❌ Chyba: obrazok sa nepodarilo nacitat.")
         return
-    i = 1
 
-    print(i)
-    i+=1
     sigmas = [1.0, 1.6, 2.2, 2.8, 3.4]
-    blurred, dogs = build_dog_pyramid(img, sigmas)
+    dogs = build_dog_pyramid(img, sigmas)
     
-    print(i)
-    i+=1
-
     my_kps = find_local_extrema(dogs, threshold=5)
-    print(i)
-    i+=1
     my_kps = select_strongest_points(my_kps, max_points=200)
-    print(i)
-    i+=1
 
     my_img = draw_keypoints(img, my_kps)
-    print(i)
-    i+=1
 
     sift_kps = detect_sift(img)
     # sift_img = cv2.drawKeypoints(img, sift_kps, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
